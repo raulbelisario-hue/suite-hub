@@ -24,47 +24,53 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Find project root and build web app
+      - name: Create Capacitor wrapper for Base44 URL
         run: |
-          PKG_PATH=$(find . -maxdepth 3 -name "package.json" -not -path "*/node_modules/*" | head -n 1)
-          if [ -z "$PKG_PATH" ]; then
-            echo "ERRO: Nenhum package.json encontrado no repositorio."
-            ls -la
-            exit 1
-          fi
-          APP_DIR=$(dirname "$PKG_PATH")
-          echo "Projeto encontrado em: $APP_DIR"
-          echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
+          mkdir -p app-wrapper/www
+          cd app-wrapper
 
-          cd "$APP_DIR"
-          npm install
-          npm run build
+          cat << 'EOF' > www/index.html
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Suite Hub</title>
+            </head>
+            <body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+              Carregando Emporio Suite Hub...
+            </body>
+          </html>
+          EOF
 
-      - name: Configure Capacitor and Android project
-        run: |
-          cd "$APP_DIR"
+          npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
 
-          WEB_DIR="dist"
-          if [ ! -d "$WEB_DIR" ] && [ -d "build" ]; then
-            WEB_DIR="build"
-          fi
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.emporiosuitehub.app",
+            "appName": "Emporio Suite Hub",
+            "webDir": "www",
+            "server": {
+              "url": "https://emporiosuitehub.base44.app/",
+              "cleartext": false,
+              "allowNavigation": [
+                "emporiosuitehub.base44.app",
+                "*.base44.app"
+              ]
+            }
+          }
+          EOF
 
-          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
-            npx cap init "Suite Hub" "com.emporiosuitehub.app" --web-dir="$WEB_DIR"
-          fi
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
+          npx cap add android
           npx cap sync android
 
       - name: Assemble debug APK
-        run: |
-          cd "$APP_DIR/android"
-          chmod +x gradlew && ./gradlew assembleDebug
+        working-directory: app-wrapper/android
+        run: chmod +x gradlew && ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: suite-hub-debug-apk
-          path: "**/app/build/outputs/apk/debug/app-debug.apk"
+          path: app-wrapper/android/app/build/outputs/apk/debug/app-debug.apk
