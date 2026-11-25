@@ -65,6 +65,27 @@ jobs:
           npx cap add android
           npx cap sync android
 
+          node -e '
+          const fs = require("fs");
+          const path = "android/build.gradle";
+          let gradle = fs.readFileSync(path, "utf8");
+          const resolutionBlock = `
+allprojects {
+    configurations.all {
+        resolutionStrategy {
+            force "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22"
+        }
+    }
+}
+`;
+          if (!gradle.includes("resolutionStrategy")) {
+            gradle += resolutionBlock;
+            fs.writeFileSync(path, gradle, "utf8");
+          }
+          '
+
       - name: Assemble debug APK
         working-directory: app-wrapper/android
         run: chmod +x gradlew && ./gradlew assembleDebug
